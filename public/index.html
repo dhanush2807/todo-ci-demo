@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Todo CI Demo</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 480px; margin: 40px auto; }
+    li.done span { text-decoration: line-through; color: #888; }
+    #error { color: #b00020; }
+  </style>
+</head>
+<body>
+  <h1>Todos</h1>
+  <form id="add-form">
+    <input id="title" placeholder="What needs doing?" aria-label="New todo" />
+    <button type="submit">Add</button>
+  </form>
+  <p id="error" role="alert"></p>
+  <ul id="list"></ul>
+
+  <script>
+    const list = document.getElementById('list');
+    const error = document.getElementById('error');
+
+    async function load() {
+      const todos = await (await fetch('/api/todos')).json();
+      list.innerHTML = '';
+      for (const t of todos) {
+        const li = document.createElement('li');
+        li.className = t.done ? 'done' : '';
+        li.dataset.testid = 'todo';
+        li.innerHTML = '<input type="checkbox"> <span></span> <button>Delete</button>';
+        li.querySelector('span').textContent = t.title;
+        li.querySelector('input').checked = t.done;
+        li.querySelector('input').onchange = async () => {
+          await fetch(`/api/todos/${t.id}/toggle`, { method: 'PATCH' });
+          load();
+        };
+        li.querySelector('button').onclick = async () => {
+          await fetch(`/api/todos/${t.id}`, { method: 'DELETE' });
+          load();
+        };
+        list.appendChild(li);
+      }
+    }
+
+    document.getElementById('add-form').onsubmit = async (e) => {
+      e.preventDefault();
+      const input = document.getElementById('title');
+      const res = await fetch('/api/todos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: input.value }),
+      });
+      error.textContent = res.ok ? '' : (await res.json()).error;
+      if (res.ok) input.value = '';
+      load();
+    };
+
+    load();
+  </script>
+</body>
+</html>

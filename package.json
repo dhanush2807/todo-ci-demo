@@ -1,0 +1,29 @@
+{
+  "name": "todo-ci-demo",
+  "version": "1.0.0",
+  "description": "Small todo app for practicing CI/CD testing",
+  "scripts": {
+    "start": "node src/server.js",
+    "lint": "eslint .",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test": "vitest run",
+    "coverage": "vitest run --coverage",
+    "test:e2e": "playwright test"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.3.0",
+    "playwright": "^1.65.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.65.1",
+    "@vitest/coverage-v8": "^5.1.0",
+    "eslint": "^10.15.0",
+    "globals": "^17.14.0",
+    "supertest": "^7.3.2",
+    "vitest": "^5.1.0"
+  },
+  "type": "module"
+}

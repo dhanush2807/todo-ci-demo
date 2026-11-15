@@ -1,0 +1,82 @@
+name: CI
+
+# When the pipeline runs
+on:
+  pull_request:            # every PR: test before merge
+  push:
+    branches: [main]       # every merge to main: test again, then deploy
+
+# A new push cancels the older run on the same branch
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Stage 1: static checks. Seconds. Catches mistakes without running code.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci                      # exact versions from package-lock.json
+      - run: npm run lint
+
+  # Stage 2: unit tests. Pure logic, no server.
+  unit:
+    needs: lint                          # only runs if lint passed (fail fast)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20, 22]           # same tests on two Node versions, in parallel
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "${{ matrix.node-version }}", cache: npm }
+      - run: npm ci
+      - run: npm run test:unit
+
+  # Stage 3: integration tests. Real HTTP routes + logic, with coverage.
+  integration:
+    needs: unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run coverage            # runs unit + integration, measures coverage
+      - uses: actions/upload-artifact@v4
+        if: always()                     # keep the report even when tests fail
+        with: { name: coverage-report, path: coverage/ }
+
+  # Stage 4: end-to-end tests. Real browser, real server.
+  e2e:
+    needs: unit                          # runs in parallel with integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e            # Playwright starts the server itself
+      - uses: actions/upload-artifact@v4
+        if: failure()                    # screenshots + traces only when needed
+        with: { name: playwright-report, path: playwright-report/ }
+
+  # Stage 5: deploy + smoke test. Only on main, only if everything passed.
+  deploy-staging:
+    needs: [integration, e2e]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: staging                 # add approval rules in repo Settings > Environments
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --omit=dev
+      # Practice stand-in for a real deploy: start the app on the runner.
+      - run: npm start &
+      # Smoke test: is the deployed app alive?
+      - run: curl --fail --retry 10 --retry-delay 1 --retry-connrefused http://localhost:3000/api/health
