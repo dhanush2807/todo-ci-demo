@@ -2,6 +2,7 @@
 import express from 'express';
 import { fileURLToPath } from 'node:url';
 import { createStore } from './todos.js';
+const unused = 42;
 
 export function createApp(store = createStore()) {
   const app = express();
